@@ -714,6 +714,10 @@ require (
 	github.com/tinylib/msgp v1.6.3 // indirect
 )
 
+require github.com/google/safetext v0.0.0-20260330151545-1fb717a317c5
+
+require github.com/pborman/uuid v1.2.1 // indirect
+
 replace (
 	// Use our fork of dolthub/go-mysql-server which adds TableHintedTable for FOR (...) hints
 	// and makes non-cgo the default for developer builds.
