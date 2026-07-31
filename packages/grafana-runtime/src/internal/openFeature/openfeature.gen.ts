@@ -135,6 +135,8 @@ export const FlagKeys = {
   QueryHistoryLocalOnly: "queryHistory.localOnly",
   /** Replace the Query History drawer with a new Recent Queries modal UI */
   QueryHistoryRecentQueriesUI: "queryHistory.recentQueriesUI",
+  /** Enables AI-assisted coauthoring in code query editors */
+  QueryeditorCoauthoringUi: "queryeditor.coauthoringUi",
   /** Enables recently viewed dashboards section in the browsing dashboard page */
   RecentlyViewedDashboards: "recentlyViewedDashboards",
   /** Enables reporting for any page in Grafana */
@@ -830,6 +832,17 @@ export const useFlagQueryHistoryLocalOnly = (options?: ReactFlagEvaluationOption
  */
 export const useFlagQueryHistoryRecentQueriesUI = (options?: ReactFlagEvaluationOptions): boolean => {
   return useFlag("queryHistory.recentQueriesUI", false, options).value;
+};
+
+/**
+ * Enables AI-assisted coauthoring in code query editors
+ *
+ * **Details:**
+ * - flag key: `queryeditor.coauthoringUi`
+ * - default value: `false`
+ */
+export const useFlagQueryeditorCoauthoringUi = (options?: ReactFlagEvaluationOptions): boolean => {
+  return useFlag("queryeditor.coauthoringUi", false, options).value;
 };
 
 /**

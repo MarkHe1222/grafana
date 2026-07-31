@@ -5304,6 +5304,20 @@
     },
     {
       "metadata": {
+        "name": "queryeditor.coauthoringUi",
+        "resourceVersion": "1785472536188",
+        "creationTimestamp": "2026-07-31T04:35:36Z"
+      },
+      "spec": {
+        "description": "Enables AI-assisted coauthoring in code query editors",
+        "stage": "experimental",
+        "codeowner": "@grafana/datapro",
+        "frontend": true,
+        "expression": "false"
+      }
+    },
+    {
+      "metadata": {
         "name": "react19",
         "resourceVersion": "1781168092989",
         "creationTimestamp": "2026-05-22T09:03:04Z",

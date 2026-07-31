@@ -44,6 +44,7 @@ declare module "@openfeature/core" {
     | "plugins.useMTPlugins"
     | "globalDashboardVariables"
     | "queryEditorNext"
+    | "queryeditor.coauthoringUi"
     | "managedPluginsV2"
     | "analyticsFramework"
     | "grafana.scenesFlickeringFix"
