@@ -110,7 +110,9 @@ const config: KnipConfig = {
       entry: [...defaultEntries, 'module.{ts,tsx,js}'],
       // these are provided by grafana-plugin-configs
       ignoreDependencies: ['@swc/jest'],
-      ignoreUnresolved: ['identity-obj-proxy'],
+      // knip's rspack plugin resolves the shared config's loaders against the
+      // plugin workspace, which doesn't declare them
+      ignoreUnresolved: ['identity-obj-proxy', 'imports-loader', 'style-loader'],
     },
     'e2e-playwright/test-plugins/*': {
       entry: [...defaultEntries, 'module.{ts,tsx,js}', 'plugins/*/module.{ts,tsx,js}'],

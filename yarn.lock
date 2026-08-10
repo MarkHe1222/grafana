@@ -2224,6 +2224,8 @@ __metadata:
     "@grafana/runtime": "npm:13.2.0-pre"
     "@grafana/schema": "npm:13.2.0-pre"
     "@grafana/ui": "npm:13.2.0-pre"
+    "@rspack/cli": "npm:^2.1.7"
+    "@rspack/core": "npm:^2.1.7"
     "@testing-library/dom": "npm:10.4.1"
     "@testing-library/jest-dom": "npm:6.6.4"
     "@testing-library/react": "npm:16.3.0"
@@ -2242,7 +2244,6 @@ __metadata:
     react-use: "npm:17.6.1"
     rxjs: "npm:7.8.2"
     typescript: "npm:6.0.2"
-    webpack: "npm:^5.105.0"
   peerDependencies:
     "@grafana/runtime": "*"
   languageName: unknown
@@ -8442,6 +8443,21 @@ __metadata:
     "@rspack/binding-win32-x64-msvc":
       optional: true
   checksum: 10/1400d8553d2122850fc43a45b69828bcdcbccf7715381a627802e160da6f93e90ca41d0280a69d175894bc29a428a374c80157b874883363b998090dc0aff33c
+  languageName: node
+  linkType: hard
+
+"@rspack/cli@npm:^2.1.7":
+  version: 2.1.8
+  resolution: "@rspack/cli@npm:2.1.8"
+  peerDependencies:
+    "@rspack/core": ^2.0.0-0
+    "@rspack/dev-server": ^2.0.0-0
+  peerDependenciesMeta:
+    "@rspack/dev-server":
+      optional: true
+  bin:
+    rspack: ./bin/rspack.js
+  checksum: 10/f2356b816975c6e6c5e549e4255a553acfb764b6b144688895b685693c4b4f2e1ea71e260501b28e6cbe90813ee6c085522cc44387c189feb659455b29874f73
   languageName: node
   linkType: hard
 
