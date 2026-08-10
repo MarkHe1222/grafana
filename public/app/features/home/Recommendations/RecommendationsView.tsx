@@ -6,21 +6,24 @@ import { type GrafanaTheme2 } from '@grafana/data';
 import { t, Trans } from '@grafana/i18n';
 import { Badge, Button, Grid, Icon, Stack, Text, useStyles2 } from '@grafana/ui';
 
+import { type Solution, type SolutionId } from '../solutions/model';
+
 import { RecommendationCard } from './RecommendationCard';
 import { RecommendationExisting } from './RecommendationExisting';
 import { RecommendationPill } from './RecommendationPill';
-import { type BaseRow, type ExistingSolutionId } from './solutionsMatrix';
+import { type BaseRow } from './solutionsMatrix';
 import { type RecommendationItem } from './types';
 
 interface RecommendationsViewProps {
   recommendations: RecommendationItem[];
-  /** The same recommendations reordered per solution view; keyed by ExistingItem id. */
-  recommendationsBySolution: Record<ExistingSolutionId, RecommendationItem[]>;
+  /** The same recommendations reordered per solution view; keyed by solution id. */
+  recommendationsBySolution: Record<SolutionId, RecommendationItem[]>;
   /** Matrix row that drove the selection; threaded into cta_clicked as starting_state. */
   startingState: BaseRow;
-  /** Owned by the parent: the stored preference also gates the solution probes there. */
+  /** Owned by the parent: the stored preference also gates recommendation selection there. */
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  solutions: Solution[];
 }
 
 export function RecommendationsView({
@@ -29,6 +32,7 @@ export function RecommendationsView({
   startingState,
   collapsed,
   setCollapsed,
+  solutions,
 }: RecommendationsViewProps) {
   const styles = useStyles2(getStyles);
 
@@ -47,7 +51,7 @@ export function RecommendationsView({
   // The carousel follows the solution displayed on the left card (default selection included);
   // undefined = providers still settling (skeleton holds the column), null = settled with none
   // (the global matrix order stands).
-  const [activeSolution, setActiveSolution] = useState<ExistingSolutionId | null>();
+  const [activeSolution, setActiveSolution] = useState<SolutionId | null>();
   const selectionPending = activeSolution === undefined;
   const items = activeSolution != null ? recommendationsBySolution[activeSolution] : recommendations;
 
@@ -122,7 +126,7 @@ export function RecommendationsView({
         <div className={styles.cards} hidden={collapsed}>
           <Grid gap={0} columns={hasRecommendations ? { xs: 1, md: 2 } : 1}>
             <div className={styles.card}>
-              <RecommendationExisting onSelectionChange={setActiveSolution} />
+              <RecommendationExisting onSelectionChange={setActiveSolution} solutions={solutions} />
 
               {hasRecommendations && (
                 <div className={styles.arrow}>
