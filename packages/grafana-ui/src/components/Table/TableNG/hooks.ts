@@ -732,9 +732,10 @@ export interface ContentAwareWidths {
   showTypeIcons?: boolean;
   getActions?: GetActionsFunctionLocal;
   sortColumns?: SortColumn[];
+  tableRefreshEnabled?: boolean;
 }
 
-const pickColWidths = (fields: Field[], availWidth: number, contentAware?: ContentAwareWidths): number[] =>
+const pickColWidths =(fields: Field[], availWidth: number, contentAware?: ContentAwareWidths): number[] =>
   contentAware ? computeContentAwareColWidths(fields, availWidth, contentAware) : computeColWidths(fields, availWidth);
 
 /**
@@ -759,6 +760,7 @@ interface UseContentAwareWidthsOptions {
   showTypeIcons?: boolean;
   getActions?: GetActionsFunctionLocal;
   sortColumns?: SortColumn[];
+  tableRefreshEnabled?: boolean;
 }
 
 /**
@@ -772,6 +774,7 @@ export function useContentAwareWidths({
   showTypeIcons = false,
   getActions,
   sortColumns,
+  tableRefreshEnabled = false,
 }: UseContentAwareWidthsOptions): ContentAwareWidths | undefined {
   const theme = useTheme2();
   return useMemo(
@@ -788,9 +791,10 @@ export function useContentAwareWidths({
             showTypeIcons,
             getActions,
             sortColumns,
+            tableRefreshEnabled,
           }
         : undefined,
-    [enabled, theme, typographyCtx, showTypeIcons, getActions, sortColumns]
+    [enabled, theme, typographyCtx, showTypeIcons, getActions, sortColumns, tableRefreshEnabled]
   );
 }
 

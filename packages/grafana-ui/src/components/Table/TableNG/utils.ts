@@ -35,7 +35,7 @@ import { type OpenLayersContextValue, isGeometry } from '../geo';
 import { type TableCellOptions } from '../types';
 
 import { AutoCellRenderer, getAutoRendererDisplayMode, getCellRenderer } from './Cells/renderers';
-import { CELL_HORIZONTAL_CHROME, COLUMN, HEADER_ICON_SPACE, TABLE } from './constants';
+import { CELL_HORIZONTAL_CHROME, COLUMN, HEADER_ICON_SPACE, HEADER_MENU_SPACE, TABLE } from './constants';
 import { type TextAlign } from './styles';
 import {
   type TableRow,
@@ -1232,6 +1232,8 @@ export interface ContentAwareColWidthsOptions {
   getActions?: GetActionsFunctionLocal;
   /** Currently-sorted columns; a sorted column reserves header space for its sort arrow. */
   sortColumns?: SortColumn[];
+  /** `table.refresh`: a filterable column reserves the column menu button instead of a filter icon. */
+  tableRefreshEnabled?: boolean;
   /** overridable for testing; otherwise derived from the auto-column count */
   sampleSize?: number;
 }
@@ -1342,11 +1344,18 @@ function measureInlineRunWidth(
  * its title the moment it's sorted; reserving its space when `isSorted` keeps the label readable
  * (the width recomputes on sort, so unsorted columns don't pay for it).
  */
-function measureHeaderWidth(field: Field, ctx: TypographyCtx, showTypeIcons: boolean, isSorted: boolean): number {
+function measureHeaderWidth(
+  field: Field,
+  ctx: TypographyCtx,
+  showTypeIcons: boolean,
+  isSorted: boolean,
+  tableRefreshEnabled: boolean
+): number {
   const textWidth = ctx.ctx.measureText(getDisplayName(field)).width;
   let iconSpace = 0;
   if (field.config?.custom?.filterable) {
-    iconSpace += HEADER_ICON_SPACE;
+    // the refreshed header replaces the inline filter icon with the (wider) column menu button
+    iconSpace += tableRefreshEnabled ? HEADER_MENU_SPACE : HEADER_ICON_SPACE;
   }
   if (showTypeIcons) {
     iconSpace += HEADER_ICON_SPACE;
@@ -1537,6 +1546,7 @@ export function computeContentAwareColWidths(
     showTypeIcons = false,
     getActions,
     sortColumns,
+    tableRefreshEnabled = false,
     sampleSize,
   }: ContentAwareColWidthsOptions
 ): number[] {
@@ -1573,7 +1583,8 @@ export function computeContentAwareColWidths(
       field,
       headerTypographyCtx,
       showTypeIcons,
-      sortedKeys.has(getDisplayName(field))
+      sortedKeys.has(getDisplayName(field)),
+      tableRefreshEnabled
     );
 
     // Every column is sized to its content (unioned with the header below), including wrapped ones:
