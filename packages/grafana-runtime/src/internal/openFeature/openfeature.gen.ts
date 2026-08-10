@@ -167,6 +167,8 @@ export const FlagKeys = {
   TableProtoRowParser: "table.protoRowParser",
   /** Enables the refactored TableNG nested-table implementation */
   TableRefactorNested: "table.refactorNested",
+  /** Enables the refreshed table experience: reworked column headers and ad hoc column interactions */
+  TableRefresh: "table.refresh",
   /** Routes short URL requests from /api to the /apis endpoint in the frontend. Depends on kubernetesShortURLs */
   UseKubernetesShortURLsAPI: "useKubernetesShortURLsAPI",
 } as const;
@@ -1016,6 +1018,17 @@ export const useFlagTableProtoRowParser = (options?: ReactFlagEvaluationOptions)
  */
 export const useFlagTableRefactorNested = (options?: ReactFlagEvaluationOptions): boolean => {
   return useFlag("table.refactorNested", false, options).value;
+};
+
+/**
+ * Enables the refreshed table experience: reworked column headers and ad hoc column interactions
+ *
+ * **Details:**
+ * - flag key: `table.refresh`
+ * - default value: `false`
+ */
+export const useFlagTableRefresh = (options?: ReactFlagEvaluationOptions): boolean => {
+  return useFlag("table.refresh", false, options).value;
 };
 
 /**
