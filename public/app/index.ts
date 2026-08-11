@@ -7,11 +7,11 @@ import type { Preferences } from '@grafana/api-clients/rtkq/preferences/v1';
 import { initPreferences } from './initPreferences';
 import { patchFetchForLegacyAPIMode } from './legacyAPIHandling';
 
-// This is a path to the public folder without '/build'. output.publicPath is 'auto', so
-// webpack's runtime has already derived the absolute path from the script that loaded it,
-// including any CDN origin or sub-path.
-window.__grafana_public_path__ =
-  __webpack_public_path__.substring(0, __webpack_public_path__.lastIndexOf('build/')) || __webpack_public_path__;
+// This is a path to the public folder without the build directory. output.publicPath is
+// 'auto', so webpack's runtime has already derived the absolute path from the script that
+// loaded it, including any CDN origin or sub-path. Strip the trailing segment rather than
+// matching 'build/' so a renamed build directory still resolves.
+window.__grafana_public_path__ = __webpack_public_path__.replace(/[^/]+\/$/, '');
 
 if (window.nonce) {
   __webpack_nonce__ = window.nonce;

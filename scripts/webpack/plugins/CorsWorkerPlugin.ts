@@ -13,17 +13,27 @@ class CorsWorkerPublicPathRuntimeModule extends RuntimeModule {
   generate(): string {
     const { compilation, publicPath } = this;
 
-    // 'auto' has no literal value to fall back on, and webpack's own derivation reads
-    // the worker's location — which for a CorsWorker is the blob URL, not the chunk URL.
-    // The value the blob sets is the only correct source.
-    if (publicPath === 'auto') {
-      return `${RuntimeGlobals.publicPath} = __webpack_worker_public_path__;`;
-    }
-
     const publicPathValue = compilation!.getPath(publicPath || '', {
       hash: compilation!.hash || 'XXXX',
     });
     return `${RuntimeGlobals.publicPath} = __webpack_worker_public_path__ || '${publicPathValue}';`;
+  }
+}
+
+/**
+ * Used when publicPath is 'auto', which has no literal value to fall back on. Webpack's own
+ * derivation reads the worker's location, which for a CorsWorker is the blob URL rather than
+ * the chunk URL — so this runs after it (STAGE_ATTACH) and prefers the value the blob sets.
+ * The typeof guard matters: a natively constructed worker never sets the global, and there
+ * webpack's derivation is already correct because its location _is_ the chunk URL.
+ */
+class CorsWorkerPublicPathOverrideRuntimeModule extends RuntimeModule {
+  constructor() {
+    super('publicPath override', RuntimeModule.STAGE_ATTACH);
+  }
+
+  generate(): string {
+    return `if (typeof __webpack_worker_public_path__ !== 'undefined') ${RuntimeGlobals.publicPath} = __webpack_worker_public_path__;`;
   }
 }
 
@@ -49,8 +59,17 @@ export default class CorsWorkerPlugin {
         .for(RuntimeGlobals.publicPath)
         .tap('CorsWorkerPlugin', (chunk: Chunk) => {
           if (getChunkLoading(chunk) === 'import-scripts') {
-            const module = new CorsWorkerPublicPathRuntimeModule(String(getChunkPublicPath(chunk)));
-            compilation.addRuntimeModule(chunk, module);
+            const publicPath = getChunkPublicPath(chunk);
+
+            // Returning undefined leaves the requirement unsatisfied so webpack's own
+            // RuntimePlugin still installs AutoPublicPathRuntimeModule, which the override
+            // module then corrects for blob-loaded workers.
+            if (publicPath === 'auto') {
+              compilation.addRuntimeModule(chunk, new CorsWorkerPublicPathOverrideRuntimeModule());
+              return undefined;
+            }
+
+            compilation.addRuntimeModule(chunk, new CorsWorkerPublicPathRuntimeModule(String(publicPath)));
             return true;
           }
           return undefined;
