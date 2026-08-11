@@ -733,6 +733,7 @@ export interface ContentAwareWidths {
   getActions?: GetActionsFunctionLocal;
   sortColumns?: SortColumn[];
   tableRefreshEnabled?: boolean;
+  filter?: FilterType;
 }
 
 const pickColWidths =(fields: Field[], availWidth: number, contentAware?: ContentAwareWidths): number[] =>
@@ -761,6 +762,7 @@ interface UseContentAwareWidthsOptions {
   getActions?: GetActionsFunctionLocal;
   sortColumns?: SortColumn[];
   tableRefreshEnabled?: boolean;
+  filter?: FilterType;
 }
 
 /**
@@ -775,6 +777,7 @@ export function useContentAwareWidths({
   getActions,
   sortColumns,
   tableRefreshEnabled = false,
+  filter,
 }: UseContentAwareWidthsOptions): ContentAwareWidths | undefined {
   const theme = useTheme2();
   return useMemo(
@@ -792,9 +795,10 @@ export function useContentAwareWidths({
             getActions,
             sortColumns,
             tableRefreshEnabled,
+            filter,
           }
         : undefined,
-    [enabled, theme, typographyCtx, showTypeIcons, getActions, sortColumns, tableRefreshEnabled]
+    [enabled, theme, typographyCtx, showTypeIcons, getActions, sortColumns, tableRefreshEnabled, filter]
   );
 }
 

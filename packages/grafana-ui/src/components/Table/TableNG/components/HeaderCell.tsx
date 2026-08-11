@@ -3,6 +3,7 @@ import memoize from 'micro-memoize';
 import React, { useEffect, useRef } from 'react';
 
 import { type Field, type GrafanaTheme2 } from '@grafana/data';
+import { t } from '@grafana/i18n';
 import { type Column, type SortDirection } from '@grafana/react-data-grid';
 
 import { useStyles2 } from '../../../../themes/ThemeContext';
@@ -52,6 +53,8 @@ export const HeaderCell: React.FC<HeaderCellProps> = ({
   const styles = useStyles2(getStyles, headerCellWrap);
   const displayName = getDisplayName(field);
   const filterable = field.config.custom?.filterable ?? false;
+  const filterKey = typeof parentIndex === 'number' ? `${column.key}-${parentIndex}` : column.key;
+  const hasActiveFilter = tableRefreshEnabled && filterable && filter[filterKey]?.filtered != null;
 
   // we have to remove/reset the filter if the column is not filterable
   useEffect(() => {
@@ -103,6 +106,18 @@ export const HeaderCell: React.FC<HeaderCellProps> = ({
           <Icon className={styles.headerCellIcon} size="lg" name={direction === 'ASC' ? 'arrow-up' : 'arrow-down'} />
         )}
       </button>
+      {/* the column menu is only revealed on hover, so an active filter needs a persistent marker of
+          its own; it sits with the sort arrow because both report state rather than offering an action.
+          Sized "sm" like the type icon rather than "lg" like the arrow: the funnel fills its box where
+          the arrow is a thin glyph, so matching the arrow's nominal size reads far bigger than it. */}
+      {hasActiveFilter && (
+        <Icon
+          className={styles.headerCellIcon}
+          size="sm"
+          name="filter"
+          title={t('grafana-ui.table.column-filtered', 'Filtered')}
+        />
+      )}
     </>
   );
 
