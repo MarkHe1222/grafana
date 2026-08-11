@@ -13,6 +13,13 @@ class CorsWorkerPublicPathRuntimeModule extends RuntimeModule {
   generate(): string {
     const { compilation, publicPath } = this;
 
+    // 'auto' has no literal value to fall back on, and webpack's own derivation reads
+    // the worker's location — which for a CorsWorker is the blob URL, not the chunk URL.
+    // The value the blob sets is the only correct source.
+    if (publicPath === 'auto') {
+      return `${RuntimeGlobals.publicPath} = __webpack_worker_public_path__;`;
+    }
+
     const publicPathValue = compilation!.getPath(publicPath || '', {
       hash: compilation!.hash || 'XXXX',
     });
@@ -42,13 +49,9 @@ export default class CorsWorkerPlugin {
         .for(RuntimeGlobals.publicPath)
         .tap('CorsWorkerPlugin', (chunk: Chunk) => {
           if (getChunkLoading(chunk) === 'import-scripts') {
-            const publicPath = getChunkPublicPath(chunk);
-
-            if (publicPath !== 'auto') {
-              const module = new CorsWorkerPublicPathRuntimeModule(String(publicPath));
-              compilation.addRuntimeModule(chunk, module);
-              return true;
-            }
+            const module = new CorsWorkerPublicPathRuntimeModule(String(getChunkPublicPath(chunk)));
+            compilation.addRuntimeModule(chunk, module);
+            return true;
           }
           return undefined;
         });

@@ -70,7 +70,7 @@ export default (env: Env = {}): Configuration => {
       }),
       new SubresourceIntegrityPlugin(),
       new FeatureFlaggedSRIPlugin(),
-      new WebpackAssetsManifest(manifestPluginOptions),
+      new WebpackAssetsManifest({ ...manifestPluginOptions, publicPath: 'public/build-swagger/' }),
     ],
     resolve: {
       conditionNames: ['@grafana-app/source', '...'],
