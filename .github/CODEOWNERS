@@ -1155,6 +1155,8 @@ scripts/verify-pkg-stig.sh @grafana/grafana-backend-services-squad
 /scripts/**/generate-transformations* @grafana/datapro
 /scripts/webpack/ @grafana/grafana-frontend-platform
 /scripts/rspack/ @grafana/grafana-frontend-platform
+/scripts/tests/corsWorkerPlugin.test.ts @grafana/grafana-frontend-platform
+/scripts/tests/__fixtures__/ @grafana/grafana-frontend-platform
 /scripts/test-aliases.py @grafana/docs-tooling @jtvdez
 eslint-suppressions.json @grafanabot
 
