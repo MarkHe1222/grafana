@@ -1001,4 +1001,8 @@ const (
 	// FlagPluginsForceTls13
 	// Forces the plugin HTTP client to use TLS 1.3 - if the plugin is using the SDK client
 	FlagPluginsForceTls13 = "pluginsForceTls13"
+
+	// FlagAlertingFolderHasRulesLabel
+	// Maintain the alerting.grafana.app/has-rules label on folders that contain Grafana-managed alert or recording rules, so folders holding rules can be queried by label selector
+	FlagAlertingFolderHasRulesLabel = "alerting.folderHasRulesLabel"
 )
