@@ -27,6 +27,7 @@ const (
 	LastImportTimeSection         = "unified/lastimport"
 	PendingDeleteSection          = "unified/pendingdelete"
 	LeasesSection                 = "unified/leases"
+	GarbageCollectionSection      = "unified/gc"
 	SearchSnapshotManifestSection = "search/snapshot-manifest"
 	SearchSnapshotDataSection     = "search/snapshot-data"
 	StatsDailySection             = "stats/daily"
@@ -42,6 +43,7 @@ var validSaveSections = map[string]bool{
 	PendingDeleteSection:          true,
 	LastImportTimeSection:         true,
 	LeasesSection:                 true,
+	GarbageCollectionSection:      true,
 	SearchSnapshotManifestSection: true,
 	SearchSnapshotDataSection:     true,
 	StatsDailySection:             true,

@@ -46,6 +46,9 @@ const (
 	defaultSearchLookback             = 1 * time.Second
 	defaultGarbageCollectionBatchWait = 1 * time.Second
 	persistDeadline                   = 10 * time.Second
+
+	// gcLockKey backs the singleton lock used by runGarbageCollectionWithLock.
+	gcLockKey = "lock"
 )
 
 // IsResourceNameMixedCase reports whether a successful read returned a
@@ -637,12 +640,98 @@ func (b *kvStorageBackend) initGarbageCollection(ctx context.Context) error {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				b.runGarbageCollection(ctx, time.Now().Add(-b.garbageCollection.MaxAge).UnixMicro())
+				b.runGarbageCollectionWithLock(ctx, time.Now().Add(-b.garbageCollection.MaxAge).UnixMicro())
 			}
 		}
 	}()
 
 	return nil
+}
+
+// gcLockMetadata is the data written on the `gcLockKey` entry.
+type gcLockMetadata struct {
+	Expires int64 `json:"expires"`
+}
+
+// runGarbageCollectionWithLock is a best-effort attempt at having only one
+// storage-api replica run a GC cycle at a time; deletes are idempotent, so a
+// concurrent run by two replicas is safe, just redundant.
+func (b *kvStorageBackend) runGarbageCollectionWithLock(ctx context.Context, cutoffTimeStamp int64) {
+	metadata, err := b.readGCLock(ctx)
+	if err != nil && !errors.Is(err, kv.ErrNotFound) {
+		b.log.Error("failed to read garbage collection lock", "error", err)
+		return
+	}
+
+	if err == nil {
+		if time.Now().Before(time.Unix(0, metadata.Expires)) {
+			// Another replica is already running a GC cycle.
+			return
+		}
+
+		// Lock is expired, likely leftover from a cycle that didn't exit cleanly.
+		if err := b.deleteGCLock(ctx); err != nil {
+			b.log.Error("failed to delete expired garbage collection lock", "error", err)
+			return
+		}
+	}
+
+	acquired, err := b.createGCLock(ctx)
+	if err != nil {
+		b.log.Error("failed to acquire garbage collection lock", "error", err)
+		return
+	}
+	if !acquired {
+		return
+	}
+	defer func() {
+		if err := b.deleteGCLock(ctx); err != nil {
+			b.log.Error("failed to release garbage collection lock", "error", err)
+		}
+	}()
+
+	b.runGarbageCollection(ctx, cutoffTimeStamp)
+}
+
+func (b *kvStorageBackend) readGCLock(ctx context.Context) (*gcLockMetadata, error) {
+	r, err := b.kv.Get(ctx, kv.GarbageCollectionSection, gcLockKey)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = r.Close() }()
+
+	var meta gcLockMetadata
+	if err := json.NewDecoder(r).Decode(&meta); err != nil {
+		return nil, fmt.Errorf("decoding garbage collection lock: %w", err)
+	}
+
+	return &meta, nil
+}
+
+func (b *kvStorageBackend) createGCLock(ctx context.Context) (bool, error) {
+	meta := gcLockMetadata{
+		Expires: time.Now().Add(b.garbageCollection.Interval).UnixNano(),
+	}
+
+	data, err := json.Marshal(meta)
+	if err != nil {
+		return false, fmt.Errorf("marshaling garbage collection lock: %w", err)
+	}
+
+	if err := b.kv.Batch(ctx, kv.GarbageCollectionSection, []kv.BatchOp{
+		{Mode: kv.BatchOpCreate, Key: gcLockKey, Value: data},
+	}); err != nil {
+		if errors.Is(err, kv.ErrKeyAlreadyExists) {
+			return false, nil
+		}
+		return false, fmt.Errorf("creating garbage collection lock: %w", err)
+	}
+
+	return true, nil
+}
+
+func (b *kvStorageBackend) deleteGCLock(ctx context.Context) error {
+	return b.kv.Delete(ctx, kv.GarbageCollectionSection, gcLockKey)
 }
 
 // runGarbageCollection identifies deleted resources that are safe
