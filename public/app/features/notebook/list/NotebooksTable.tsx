@@ -20,8 +20,9 @@ import {
 import { useLazyGetNotebookQuery } from 'app/api/clients/dashboard/v2beta1';
 
 import { NotebookExportMenu } from '../export/NotebookExportMenu';
+import { canEditNotebooks } from '../permissions';
 import { type Spec as NotebookSpec } from '../types';
-import { notebookShareUrl, notebookViewHref, notebookViewUrl } from '../urls';
+import { notebookEditHref, notebookShareUrl, notebookViewUrl } from '../urls';
 
 import { type NotebookRow } from './useNotebooksList';
 
@@ -111,12 +112,17 @@ function RelativeTime({ timestamp }: { timestamp: string }) {
 }
 
 function NotebookRowActions({ notebook }: { notebook: NotebookRow }) {
+  // Omitted rather than disabled for a user who cannot edit, matching the create button on the page
+  // around this table.
+  const canEdit = canEditNotebooks();
+
   return (
     <Stack alignItems="center" justifyContent="flex-end" gap={1}>
-      {/* Editing is not built yet, so Edit goes where the title goes: the notebook itself. */}
-      <LinkButton variant="secondary" size="sm" icon="pen" href={notebookViewHref(notebook.uid)}>
-        {t('notebooks.list.table.edit', 'Edit')}
-      </LinkButton>
+      {canEdit && (
+        <LinkButton variant="secondary" size="sm" icon="pen" href={notebookEditHref(notebook.uid)}>
+          {t('notebooks.list.table.edit', 'Edit')}
+        </LinkButton>
+      )}
       <ClipboardButton variant="secondary" size="sm" icon="link" getText={() => notebookShareUrl(notebook.uid)}>
         {t('notebooks.list.table.copy-link', 'Copy link')}
       </ClipboardButton>
