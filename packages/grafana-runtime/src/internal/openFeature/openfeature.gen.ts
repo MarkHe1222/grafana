@@ -51,8 +51,6 @@ export const FlagKeys = {
   FaroSessionReplay: "faroSessionReplay",
   /** Enables the feedback button in the dashboard edit sidebar */
   FeedbackButton: "feedbackButton",
-  /** Enables the new Flame Graph UI containing the Call Tree view */
-  FlameGraphWithCallTree: "flameGraphWithCallTree",
   /** Enables global and folder-scoped dashboard variables via dashboard.grafana.app */
   GlobalDashboardVariables: "globalDashboardVariables",
   /** Enables custom dashboard templates for enterprise */
@@ -378,17 +376,6 @@ export const useFlagFaroSessionReplay = (options?: ReactFlagEvaluationOptions): 
  */
 export const useFlagFeedbackButton = (options?: ReactFlagEvaluationOptions): boolean => {
   return useFlag("feedbackButton", true, options).value;
-};
-
-/**
- * Enables the new Flame Graph UI containing the Call Tree view
- *
- * **Details:**
- * - flag key: `flameGraphWithCallTree`
- * - default value: `false`
- */
-export const useFlagFlameGraphWithCallTree = (options?: ReactFlagEvaluationOptions): boolean => {
-  return useFlag("flameGraphWithCallTree", false, options).value;
 };
 
 /**

@@ -51,7 +51,6 @@ declare module "@openfeature/core" {
     | "grafana.scenesFlickeringFix"
     | "grafana.viewPanelPane"
     | "datasourcesApiServerEnableHealthEndpointFrontend"
-    | "flameGraphWithCallTree"
     | "inlineLogDetailsNoScrolls"
     | "logsTablePanelNG"
     | "plugins.useMTPluginSettings"
