@@ -22,6 +22,8 @@ jest.mock('app/api/clients/iam/v0alpha1', () => ({
 jest.mock('app/api/clients/dashboard/v2beta1', () => ({
   useListNotebookQuery: jest.fn(),
   useCreateNotebookMutation: () => [mockCreateNotebook],
+  // The row menu fetches a spec on demand for export; nothing here exercises the fetch itself.
+  useLazyGetNotebookQuery: () => [jest.fn()],
 }));
 
 const mockUseListNotebookQuery = jest.mocked(useListNotebookQuery);
@@ -104,6 +106,20 @@ describe('NotebooksListPage', () => {
     render(<NotebooksListPage />);
 
     expect(await screen.findByRole('link', { name: 'Edit' })).toHaveAttribute('href', '/notebooks/nb1');
+  });
+
+  it('opens a row menu offering export, replacing the old disabled placeholder', async () => {
+    setTestFlags({ [NOTEBOOKS_FLAG]: true });
+    setList([makeNotebook('nb1', 'Checkout error spike')]);
+
+    render(<NotebooksListPage />);
+
+    const moreActions = await screen.findByRole('button', { name: 'More actions' });
+    expect(moreActions).toBeEnabled();
+
+    await userEvent.click(moreActions);
+
+    expect(await screen.findByRole('menuitem', { name: 'Export' })).toBeInTheDocument();
   });
 
   it('filters the list by title', async () => {
