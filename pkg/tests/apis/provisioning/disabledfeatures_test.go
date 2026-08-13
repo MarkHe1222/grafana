@@ -42,7 +42,7 @@ func TestIntegrationProvisioning_MigrateDisabledByConfiguration(t *testing.T) {
 	message, found, err := unstructured.NestedString(status, "message")
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Contains(t, message, "migrate functionality is disabled by configuration")
+	require.Contains(t, message, "migrate functionality is disabled")
 }
 
 func TestIntegrationProvisioning_ExportDisabledByConfiguration(t *testing.T) {
@@ -78,5 +78,5 @@ func TestIntegrationProvisioning_ExportDisabledByConfiguration(t *testing.T) {
 	message, found, err := unstructured.NestedString(status, "message")
 	require.NoError(t, err)
 	require.True(t, found)
-	require.Contains(t, message, "export functionality is disabled by feature flag")
+	require.Contains(t, message, "export functionality is disabled")
 }

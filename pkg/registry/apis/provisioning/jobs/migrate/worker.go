@@ -49,7 +49,7 @@ func (w *MigrationWorker) Process(ctx context.Context, repo repository.Repositor
 	evalCtx := features.EvaluationContextFromTargetingKey(cfg.Namespace)
 	enabled := openfeature.NewDefaultClient().Boolean(ctx, featuremgmt.FlagProvisioningExport, false, evalCtx)
 	if !enabled {
-		return errors.New("migrate functionality is disabled by configuration")
+		return errors.New("migrate functionality is disabled")
 	}
 
 	logger := logging.FromContext(ctx).With("options", options)

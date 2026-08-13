@@ -70,7 +70,7 @@ func (r *ExportWorker) Process(ctx context.Context, repo repository.Repository, 
 	evalCtx := features.EvaluationContextFromTargetingKey(cfg.Namespace)
 	enabled := openfeature.NewDefaultClient().Boolean(ctx, featuremgmt.FlagProvisioningExport, false, evalCtx)
 	if !enabled {
-		return fmt.Errorf("export functionality is disabled by feature flag")
+		return fmt.Errorf("export functionality is disabled")
 	}
 
 	logger := logging.FromContext(ctx).With("options", options)
