@@ -40,4 +40,4 @@ use (
 	./pkg/util/sqlite
 )
 
-replace github.com/grafana/grafana-app-sdk => github.com/grafana/grafana-app-sdk v0.56.5-0.20260813002236-2a423814246c
+replace github.com/grafana/grafana-app-sdk => github.com/grafana/grafana-app-sdk v0.56.8-0.20260813004106-817c240b6188
