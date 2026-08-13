@@ -3212,6 +3212,14 @@ var (
 			Expression:  "true", // enabled by default
 			Generate:    Generate{React: true},
 		},
+		{
+			Name:        "grafana.dashboardAutoGridDefault",
+			Description: "Uses auto grid as the default layout for new dashboards",
+			Stage:       FeatureStageGeneralAvailability,
+			Generate:    Generate{React: true},
+			Owner:       grafanaDashboardsSquad,
+			Expression:  "true",
+		},
 		// tl;dr: name your new flag `component.featureName`, specify Go and/or React generation targets, and use with OpenFeature!
 		//
 		// Adding a new feature flag? Be sure to check out the updated docs at /contribute/feature-toggles.md#Steps-to-adding-a-feature-toggle
