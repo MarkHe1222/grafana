@@ -107,7 +107,7 @@ func (moa *MultiOrgAlertmanager) PrepareConfig(
 	// route
 	prepared.AlertmanagerConfig.Route = legacy_storage.WithManagedRoutes(prepared.AlertmanagerConfig.Route, prepared.ManagedRoutes)
 
-	if err := AddAutogenConfig(ctx, moa.logger, moa.configStore, orgID, &prepared.AlertmanagerConfig, onInvalid, moa.featureManager); err != nil {
+	if err := AddAutogenConfig(ctx, moa.logger, moa.configStore, orgID, prepared, onInvalid, moa.featureManager); err != nil {
 		return alertingNotify.NotificationsConfiguration{}, err
 	}
 
@@ -282,7 +282,7 @@ func (moa *MultiOrgAlertmanager) gettableUserConfigFromAMConfigString(ctx contex
 		// Otherwise, broken settings (e.g. a receiver that doesn't exist) will cause the config returned here to be
 		// different than the config currently in-use.
 		// TODO: Preferably, we'd be getting the config directly from the in-memory AM so adding the autogen config would not be necessary.
-		err := AddAutogenConfig(ctx, moa.logger, moa.configStore, orgID, &alertmanagerConfig, LogInvalidReceivers, moa.featureManager)
+		err := AddAutogenConfig(ctx, moa.logger, moa.configStore, orgID, cfg, LogInvalidReceivers, moa.featureManager)
 		if err != nil {
 			return definitions.GettableUserConfig{}, err
 		}
@@ -291,7 +291,7 @@ func (moa *MultiOrgAlertmanager) gettableUserConfigFromAMConfigString(ctx contex
 	result := definitions.GettableUserConfig{
 		TemplateFiles: v1.TemplatesToTemplateFiles(cfg.Templates),
 		AlertmanagerConfig: definitions.GettableApiAlertingConfig{
-			Config: PostableApiAlertingConfigToAPI(alertmanagerConfig).Config,
+			Config: PostableApiAlertingConfigToAPI(alertmanagerConfig, cfg.SortedTimeIntervals()).Config,
 		},
 		ExtraConfigs: ExtraConfigsToAPI(cfg.ExtraConfigs),
 	}
@@ -557,8 +557,7 @@ func (moa *MultiOrgAlertmanager) mergeProvenance(ctx context.Context, config def
 		config.TemplateFileProvenances[key] = definitions.Provenance(provenance)
 	}
 
-	mt := definitions.MuteTimeInterval{}
-	mtProvs, err := moa.ProvStore.GetProvenances(ctx, org, mt.ResourceType())
+	mtProvs, err := moa.ProvStore.GetProvenances(ctx, org, (&v1.TimeInterval{}).ResourceType())
 	if err != nil {
 		return definitions.GettableUserConfig{}, nil
 	}
