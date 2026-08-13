@@ -9,13 +9,15 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/grafana/grafana/pkg/api"
+	"github.com/grafana/grafana/pkg/router"
 	"github.com/grafana/grafana/pkg/services/apiserver/standalone"
 	"github.com/grafana/grafana/pkg/services/sqlstore/sqlutil"
 	"github.com/grafana/grafana/pkg/setting"
 )
 
 // This file provides the OSS versions of Initialize, InitializeForTest,
-// InitializeForCLI and InitializeAPIServerFactory (build tag !enterprise && !pro).
+// InitializeForCLI, InitializeAPIServerFactory and InitializeRouterFactory
+// (build tag !enterprise && !pro).
 // In an Enterprise build the generated enterprise_wire_gen.go provides those same
 // functions instead.
 //
@@ -38,6 +40,7 @@ type (
 	}, *setting.Cfg, Options, api.ServerOptions) (*TestEnv, error)
 	initializeForCLIFn           func(context.Context, *setting.Cfg) (Runner, error)
 	initializeAPIServerFactoryFn func() (standalone.APIServerFactory, error)
+	initializeRouterFactoryFn    func() (router.RouterFactory, error)
 )
 
 var (
@@ -45,6 +48,7 @@ var (
 	initializeForTestServer        initializeForTestFn
 	initializeForCLIServer         initializeForCLIFn
 	initializeAPIServerFactoryFunc initializeAPIServerFactoryFn
+	initializeRouterFactoryFunc    initializeRouterFactoryFn
 )
 
 // RegisterInitializers wires OSS dependency-injection entrypoints implemented in
@@ -54,11 +58,13 @@ func RegisterInitializers(
 	initializeForTest initializeForTestFn,
 	initializeForCLI initializeForCLIFn,
 	initializeAPIServerFactory initializeAPIServerFactoryFn,
+	initializeRouterFactory initializeRouterFactoryFn,
 ) {
 	initializeServer = initialize
 	initializeForTestServer = initializeForTest
 	initializeForCLIServer = initializeForCLI
 	initializeAPIServerFactoryFunc = initializeAPIServerFactory
+	initializeRouterFactoryFunc = initializeRouterFactory
 }
 
 func Initialize(ctx context.Context, cfg *setting.Cfg, opts Options, apiOpts api.ServerOptions) (*Server, error) {
@@ -79,4 +85,8 @@ func InitializeForCLI(ctx context.Context, cfg *setting.Cfg) (Runner, error) {
 
 func InitializeAPIServerFactory() (standalone.APIServerFactory, error) {
 	return initializeAPIServerFactoryFunc()
+}
+
+func InitializeRouterFactory() (router.RouterFactory, error) {
+	return initializeRouterFactoryFunc()
 }
