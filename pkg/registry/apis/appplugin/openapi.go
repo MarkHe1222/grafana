@@ -3,11 +3,17 @@ package appplugin
 import (
 	"fmt"
 	"maps"
+	"net/http"
+	"strings"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apiserver/pkg/registry/generic/registry"
+	"k8s.io/apiserver/pkg/registry/rest"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/spec3"
+	openapiutil "k8s.io/kube-openapi/pkg/util"
 	"k8s.io/kube-openapi/pkg/validation/spec"
 
 	"github.com/grafana/grafana-plugin-sdk-go/experimental/pluginschema"
@@ -36,7 +42,7 @@ func (b *AppPluginAPIBuilder) GetOpenAPIDefinitions() common.GetOpenAPIDefinitio
 						Version: version.Name,
 						Kind:    kind.Kind,
 					}
-					k, err := kind.Schema.AsKubeOpenAPI(gvk, ref, b.groupVersion.Group)
+					k, err := kind.Schema.AsKubeOpenAPI(gvk, ref, fmt.Sprintf("%s.%s", gvk.Group, gvk.Version))
 					if err != nil {
 						fmt.Printf("ERROR getting KubeOpenAPI! %v >>> %+v", gvk, err)
 						continue
@@ -72,6 +78,8 @@ func (b *AppPluginAPIBuilder) PostProcessOpenAPI(oas *spec3.OpenAPI) (*spec3.Ope
 
 	// The root api URL
 	root := "/apis/" + b.groupVersion.String() + "/"
+
+	b.postProcessManifestKinds(oas, root)
 
 	// Hide the resource+proxy routes -- explicit ones will be added if defined below
 	for _, v := range []string{"resources", "proxy"} {
@@ -113,6 +121,138 @@ func (b *AppPluginAPIBuilder) PostProcessOpenAPI(oas *spec3.OpenAPI) (*spec3.Ope
 		IsApp:    true,
 	})
 }
+
+// postProcessManifestKinds fixes the routes of manifest-defined kinds that
+// the endpoint installer documents from scheme-created zero-value unstructured
+// objects, which have no per-kind identity: create/update request bodies
+// (rest.StorageMetadata only covers responses) and the list response. The
+// <Kind>List component is injected here as well since no route references it,
+// so the spec builder never includes it on its own.
+func (b *AppPluginAPIBuilder) postProcessManifestKinds(oas *spec3.OpenAPI, root string) {
+	if b.manifest == nil {
+		return
+	}
+	for _, v := range b.manifest.Versions {
+		if v.Name != b.groupVersion.Version || !v.Served {
+			continue
+		}
+		for _, kind := range v.Kinds {
+			// Same canonical name the kindDocsSample carries, converted the same
+			// way the definition namer converts it into a component key.
+			friendly := fmt.Sprintf("%s.%s.%s", b.manifest.Group, v.Name, kind.Kind)
+			ref := spec.MustCreateRef("#/components/schemas/" + friendly)
+			base := root + "namespaces/{namespace}/" + strings.ToLower(kind.Plural)
+			if p := oas.Paths.Paths[base]; p != nil && p.Post != nil {
+				setRequestBodySchemaRef(p.Post.RequestBody, ref)
+			}
+			if p := oas.Paths.Paths[base+"/{name}"]; p != nil && p.Put != nil {
+				setRequestBodySchemaRef(p.Put.RequestBody, ref)
+			}
+
+			if oas.Components == nil || oas.Components.Schemas == nil {
+				continue
+			}
+			listName := friendly + "List"
+			oas.Components.Schemas[listName] = kindListSchema(kind.Kind, ref)
+			if p := oas.Paths.Paths[base]; p != nil && p.Get != nil {
+				setResponseSchemaRef(p.Get, http.StatusOK,
+					spec.MustCreateRef("#/components/schemas/"+listName))
+			}
+		}
+	}
+}
+
+// kindListSchema mirrors the <Kind>List definition AsKubeOpenAPI produces,
+// with refs pointing at components already present in the built spec. The
+// ListMeta component is always reachable through the settings kind, so the
+// metadata ref never dangles.
+func kindListSchema(kind string, itemRef spec.Ref) *spec.Schema {
+	return &spec.Schema{
+		SchemaProps: spec.SchemaProps{
+			Description: kind + "List is a list of " + kind,
+			Type:        []string{"object"},
+			Properties: map[string]spec.Schema{
+				"kind":       *spec.StringProperty(),
+				"apiVersion": *spec.StringProperty(),
+				"metadata": {SchemaProps: spec.SchemaProps{
+					Ref: spec.MustCreateRef("#/components/schemas/" + v1.ListMeta{}.OpenAPIModelName()),
+				}},
+				"items": {SchemaProps: spec.SchemaProps{
+					Type: []string{"array"},
+					Items: &spec.SchemaOrArray{
+						Schema: &spec.Schema{SchemaProps: spec.SchemaProps{Ref: itemRef}},
+					},
+				}},
+			},
+			Required: []string{"metadata", "items"},
+		},
+	}
+}
+
+// setResponseSchemaRef replaces the schema of every media type in the
+// response for the given status code with a reference to the given schema.
+func setResponseSchemaRef(op *spec3.Operation, code int, ref spec.Ref) {
+	if op.Responses == nil {
+		return
+	}
+	resp := op.Responses.StatusCodeResponses[code]
+	if resp == nil {
+		return
+	}
+	for _, mt := range resp.Content {
+		mt.Schema = &spec.Schema{SchemaProps: spec.SchemaProps{Ref: ref}}
+	}
+}
+
+// setRequestBodySchemaRef replaces the schema of every media type in a
+// request body with a reference to the given schema.
+func setRequestBodySchemaRef(body *spec3.RequestBody, ref spec.Ref) {
+	if body == nil {
+		return
+	}
+	for _, mt := range body.Content {
+		mt.Schema = &spec.Schema{SchemaProps: spec.SchemaProps{Ref: ref}}
+	}
+}
+
+var (
+	_ openapiutil.OpenAPICanonicalTypeNamer = (*kindDocsSample)(nil)
+	_ rest.StorageMetadata                  = (*kindStorage)(nil)
+)
+
+// kindDocsSample is the OpenAPI documentation sample for a manifest-defined
+// kind. Manifest kinds are served as unstructured.Unstructured, which would
+// normally make every kind reflect to the same generic OpenAPI definition;
+// kube-openapi checks OpenAPICanonicalTypeNamer on the sample instance before
+// falling back to reflection, so this carries the per-kind definition name.
+// It is never stored or served -- documentation only.
+type kindDocsSample struct {
+	unstructured.Unstructured
+}
+
+// OpenAPICanonicalTypeName returns the canonical name (group.version.Kind),
+// matching the definition keys produced by AsKubeOpenAPI in
+// GetOpenAPIDefinitions above. The definition namer no longer rewrites names,
+// so this is also the component name in the served spec -- it must not
+// contain a slash.
+func (u *kindDocsSample) OpenAPICanonicalTypeName() string {
+	gvk := u.GroupVersionKind()
+	return gvk.Group + "." + gvk.Version + "." + gvk.Kind
+}
+
+// kindStorage adds rest.StorageMetadata to a manifest kind's store so the
+// endpoint installer documents responses with the kind's own schema rather
+// than the zero-value unstructured object it would otherwise create through
+// the scheme. This hook only covers single-object responses; request bodies
+// and list responses are rewritten in postProcessManifestKinds.
+type kindStorage struct {
+	*registry.Store
+	sample *kindDocsSample
+}
+
+func (s *kindStorage) ProducesMIMETypes(verb string) []string { return nil }
+
+func (s *kindStorage) ProducesObject(verb string) interface{} { return s.sample }
 
 func defaultSchema() *pluginschema.PluginSchema {
 	return &pluginschema.PluginSchema{

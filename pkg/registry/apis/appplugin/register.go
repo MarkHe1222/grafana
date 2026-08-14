@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/open-feature/go-sdk/openfeature"
+	"k8s.io/apiextensions-apiserver/pkg/apiserver/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -292,8 +293,8 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 				})
 
 				key := fmt.Sprintf("%s.%s", gr.Group, gvk.Kind)
-				def, err := kind.Schema.AsKubeOpenAPI(gvk, func(path string) spec.Ref {
-					return spec.Ref{} // ????
+				def, err := kind.Schema.AsKubeOpenAPI(gvk, func(name string) spec.Ref {
+					return spec.MustCreateRef("#/definitions/" + name)
 				}, b.groupVersion.Group)
 				if err != nil {
 					return err
@@ -302,6 +303,16 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 				if !found {
 					return fmt.Errorf("missing expected schema key")
 				}
+
+				// AsKubeOpenAPI splits nested types (spec, status, etc) into separate
+				// definitions linked by $ref. Inline them as definitions on the kind's
+				// own schema so the schema is self-contained for validation purposes.
+				validationSchema := obj.Schema
+				validationSchema.Definitions = make(spec.Definitions, len(def))
+				for name, d := range def {
+					validationSchema.Definitions[name] = d.Schema
+				}
+				schemaValidator := validation.NewSchemaValidatorFromOpenAPI(&validationSchema)
 
 				ri := utils.NewResourceInfo(
 					b.groupVersion.Group, version, gr.Resource,
@@ -320,16 +331,19 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 					utils.TableColumns{}, // from manifest
 				)
 
-				// TODO! the storage should be wrapped with plugin callbacks and using obj.Schema to validate
-				unified, err = grafanaregistry.NewRegistryStore(opts.Scheme, ri, opts.OptsGetter)
+				// TODO! the storage should be wrapped with plugin callbacks
+				kindStore, err := grafanaregistry.NewRegistryStore(opts.Scheme, ri, opts.OptsGetter)
 				if err != nil {
 					return err
 				}
-				storage[ri.StoragePath()] = unified
+				withSchemaValidation(kindStore, schemaValidator)
+				sample := &kindDocsSample{}
+				sample.SetGroupVersionKind(gvk)
+				storage[ri.StoragePath()] = &kindStorage{Store: kindStore, sample: sample}
 
 				// Register status endpoint
 				if _, found = obj.Schema.Properties["status"]; found {
-					fmt.Printf("TODO... register the status endpoint: %v\n", gvk)
+					fmt.Printf("TODO... register the status endpoint (%v)\n", gvk)
 				}
 			}
 		}
