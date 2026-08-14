@@ -99,7 +99,7 @@ func TestGetAppPlugins(t *testing.T) {
 			pluginInfos, err := pluginspec.LoadPlugins(context.Background(), tt.registry,
 				func(jsonData plugins.JSONData) bool {
 					return jsonData.Type == plugins.TypeApp
-				}, true)
+				}, true, true)
 
 			if tt.expectedErr {
 				require.Error(t, err)

@@ -9,11 +9,13 @@ import (
 	"sync"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	serverstorage "k8s.io/apiserver/pkg/server/storage"
 	"k8s.io/klog/v2"
 	openapi "k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/spec3"
+	openapiutil "k8s.io/kube-openapi/pkg/util"
 	spec "k8s.io/kube-openapi/pkg/validation/spec"
 
 	"github.com/grafana/grafana-app-sdk/logging"
@@ -46,6 +48,11 @@ func GetOpenAPIDefinitions(builders []APIGroupBuilder, additionalGetters ...open
 		defs := common.GetOpenAPIDefinitions(ref) // common grafana apis
 		maps.Copy(defs, data.GetOpenAPIDefinitions(ref))
 		maps.Copy(defs, secret.GetOpenAPIDefinitions(ref)) // Expose secret reference to all resources
+
+		// Add a dummy object for unstructured values
+		objectSchema := spec.Schema{SchemaProps: spec.SchemaProps{Type: []string{"object"}}}
+		defs[openapiutil.GetCanonicalTypeName(unstructured.Unstructured{})] = openapi.OpenAPIDefinition{Schema: objectSchema}
+		defs[openapiutil.GetCanonicalTypeName(unstructured.UnstructuredList{})] = openapi.OpenAPIDefinition{Schema: objectSchema}
 
 		for _, getter := range additionalGetters {
 			if getter != nil {

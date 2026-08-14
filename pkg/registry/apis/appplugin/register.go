@@ -6,11 +6,13 @@ import (
 	"strings"
 
 	"github.com/open-feature/go-sdk/openfeature"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	"github.com/grafana/grafana-app-sdk/app"
 	"github.com/grafana/grafana-app-sdk/logging"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental/pluginschema"
@@ -65,6 +67,7 @@ type AppPluginRunnerOptions struct {
 
 // AppPluginAPIBuilder builds an apiserver for a single app plugin.
 type AppPluginAPIBuilder struct {
+	manifest        *app.ManifestData
 	pluginJSON      plugins.JSONData
 	groupVersion    schema.GroupVersion
 	client          PluginClient // will only ever be called with the same plugin id!
@@ -129,6 +132,8 @@ func RegisterAPIService(
 	}
 	registerProxy := openfeature.NewDefaultClient().Boolean(ctx, featuremgmt.FlagApppluginsHandleProxyRequests, false, openfeature.TransactionContext(ctx))
 
+	loadAppManifest := true // always check for app manifest file (use feature toggle)
+
 	// Find all local plugins
 	pluginInfos, err := pluginspec.LoadPlugins(ctx, pluginSources,
 		func(jsonData plugins.JSONData) bool {
@@ -141,7 +146,7 @@ func RegisterAPIService(
 				return true
 			}
 			return false
-		}, true)
+		}, true, loadAppManifest)
 
 	if err != nil {
 		return nil, fmt.Errorf("error getting list of datasource plugins: %s", err)
@@ -170,6 +175,25 @@ func RegisterAPIService(
 		if err != nil {
 			return nil, err
 		}
+
+		if plugin.Manifest != nil {
+			// TODO? do we register each version?
+			for _, v := range plugin.Manifest.Versions {
+				fmt.Printf("TODO, register: %s/%s\n", plugin.Manifest.Group, v.Name)
+			}
+
+			// TODO -- update the constructor with the manifest
+			// That will support MT, but that requires parallel enterprise PR
+			b.manifest = plugin.Manifest
+		}
+
+		// Hardcoded just to check if things run
+		if true {
+			copy := exampleManifestData
+			copy.Group = b.groupVersion.Group
+			b.manifest = &copy
+		}
+
 		apiRegistrar.RegisterAPI(b)
 		last = b
 	}
@@ -184,6 +208,19 @@ func (b *AppPluginAPIBuilder) InstallSchema(scheme *runtime.Scheme) error {
 	if err := apppluginV0.AddKnownTypes(scheme, b.groupVersion); err != nil {
 		return err
 	}
+
+	// Register unstructured manifest kinds
+	if b.manifest != nil {
+		for _, version := range b.manifest.Versions {
+			gv := schema.GroupVersion{Group: b.manifest.Group, Version: version.Name}
+			for _, r := range version.Kinds {
+				gvk := gv.WithKind(r.Kind)
+				scheme.AddKnownTypeWithName(gvk, &unstructured.Unstructured{})
+				scheme.AddKnownTypeWithName(gvk.GroupVersion().WithKind(gvk.Kind+"List"), &unstructured.UnstructuredList{})
+			}
+		}
+	}
+
 	return scheme.SetVersionPriority(b.groupVersion)
 }
 
@@ -194,12 +231,13 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 		b.groupVersion.Group, b.pluginJSON.ID,
 	)
 
-	if opts.StorageOptsRegister != nil {
-		opts.StorageOptsRegister(settingsRI.GroupResource(), apistore.StorageOptions{
-			EnableFolderSupport: false,
-			Scheme:              opts.Scheme,
-		})
+	if opts.StorageOptsRegister == nil {
+		return fmt.Errorf("apps require storage opts")
 	}
+	opts.StorageOptsRegister(settingsRI.GroupResource(), apistore.StorageOptions{
+		EnableFolderSupport: false,
+		Scheme:              opts.Scheme,
+	})
 
 	b.applyDefaultStorageConfig(opts, settingsRI)
 
@@ -231,8 +269,58 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 		storage[settingsRI.StoragePath("proxy")] = newProxy(b)
 	}
 
+	// Configure storage for manifest defined kinds
+	version := b.groupVersion.Version // what about multiple version?!!
+	if b.manifest != nil {
+		for _, v := range b.manifest.Versions {
+			if v.Name != version {
+				continue
+			}
+
+			for _, kind := range v.Kinds {
+				gr := schema.GroupResource{Group: b.groupVersion.Group, Resource: strings.ToLower(kind.Plural)}
+				gvk := gr.WithVersion(version).GroupVersion().WithKind(kind.Kind)
+				listGVK := gvk.GroupVersion().WithKind(gvk.Kind + "List")
+				folder := (kind.FolderScoped != nil && *kind.FolderScoped)
+
+				// These can not change between versions
+				opts.StorageOptsRegister(gr, apistore.StorageOptions{
+					EnableFolderSupport:  folder,
+					RequireFolder:        folder,
+					DeprecatedInternalID: apistore.DeprecatedID_None,
+					Scheme:               opts.Scheme,
+				})
+
+				ri := utils.NewResourceInfo(
+					b.groupVersion.Group, version, gr.Resource,
+					kind.Kind, // singular name
+					kind.Kind, // kind
+					func() runtime.Object {
+						u := &unstructured.Unstructured{}
+						u.SetGroupVersionKind(gvk)
+						return u
+					},
+					func() runtime.Object {
+						u := &unstructured.UnstructuredList{}
+						u.SetGroupVersionKind(listGVK)
+						return u
+					},
+					utils.TableColumns{}, // from manifest
+				)
+
+				unified, err = grafanaregistry.NewRegistryStore(opts.Scheme, ri, opts.OptsGetter)
+				if err != nil {
+					return err
+				}
+				storage[ri.StoragePath()] = unified
+
+				// TODO, if status exists enable that also
+			}
+		}
+	}
+
 	b.getter = storage[settingsRI.StoragePath()].(rest.Getter)
-	apiGroupInfo.VersionedResourcesStorageMap[b.groupVersion.Version] = storage
+	apiGroupInfo.VersionedResourcesStorageMap[version] = storage
 	return nil
 }
 

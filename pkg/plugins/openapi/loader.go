@@ -2,14 +2,22 @@ package openapi
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 
+	"github.com/grafana/grafana-app-sdk/app"
+	appmanifestV1alpha2 "github.com/grafana/grafana-app-sdk/app/appmanifest/v1alpha2"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/experimental/pluginschema"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/plugins/manager/sources"
 )
+
+// appSDKManifestFile is the statically-named file, read from the root of an app plugin's
+// bundle, that holds the plugin's app-sdk manifest (an AppManifest custom resource).
+const appSDKManifestFile = "app-sdk-manifest.json"
 
 type PluginInfo struct {
 	JSONData plugins.JSONData
@@ -17,9 +25,12 @@ type PluginInfo struct {
 	// apiVersion -> schema (currently only v0alpha1)
 	// This will be nil if no schemas are found, or if withSchemas is false when loading.
 	Schemas map[string]*pluginschema.PluginSchema
+
+	// When an app manifest is defined, we can use that
+	Manifest *app.ManifestData
 }
 
-func LoadPlugins(ctx context.Context, pluginSources sources.Registry, filter func(plugins.JSONData) bool, withSchemas bool) ([]PluginInfo, error) {
+func LoadPlugins(ctx context.Context, pluginSources sources.Registry, filter func(plugins.JSONData) bool, withSchemas bool, withManifest bool) ([]PluginInfo, error) {
 	var pluginInfo []PluginInfo
 
 	// It's possible that the same plugin will be found in different sources.
@@ -38,7 +49,7 @@ func LoadPlugins(ctx context.Context, pluginSources sources.Registry, filter fun
 					backend.Logger.Info("Found duplicate plugin %s when registering API groups.", p.Primary.JSONData.ID)
 					continue
 				}
-				info, err := loadInfo(p.Primary.FS, p.Primary.JSONData, withSchemas)
+				info, err := loadInfo(p.Primary.FS, p.Primary.JSONData, withSchemas, withManifest)
 				if err != nil {
 					return nil, err
 				}
@@ -53,7 +64,7 @@ func LoadPlugins(ctx context.Context, pluginSources sources.Registry, filter fun
 						continue
 					}
 
-					info, err := loadInfo(child.FS, child.JSONData, withSchemas)
+					info, err := loadInfo(child.FS, child.JSONData, withSchemas, withManifest)
 					if err != nil {
 						return nil, err
 					}
@@ -66,10 +77,19 @@ func LoadPlugins(ctx context.Context, pluginSources sources.Registry, filter fun
 	return pluginInfo, nil
 }
 
-func loadInfo(rootfs fs.FS, jsondata plugins.JSONData, withSchemas bool) (PluginInfo, error) {
+func loadInfo(rootfs fs.FS, jsondata plugins.JSONData, withSchemas bool, withManifest bool) (PluginInfo, error) {
 	info := PluginInfo{
 		JSONData: jsondata,
 	}
+
+	if withManifest {
+		m, err := loadManifest(rootfs)
+		if err != nil {
+			return info, err
+		}
+		info.Manifest = m
+	}
+
 	if !withSchemas {
 		return info, nil
 	}
@@ -90,4 +110,28 @@ func loadInfo(rootfs fs.FS, jsondata plugins.JSONData, withSchemas bool) (Plugin
 		}
 	}
 	return info, nil
+}
+
+func loadManifest(rootfs fs.FS) (*app.ManifestData, error) {
+	f, err := rootfs.Open(appSDKManifestFile)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("opening %s: %w", appSDKManifestFile, err)
+	}
+	defer f.Close() //nolint:errcheck
+
+	// TODO... this loads a specific version, but we should support any flavor and convert to the latest version.
+	// For now, we only support v1alpha2.
+	var cr appmanifestV1alpha2.AppManifest
+	if err := json.NewDecoder(f).Decode(&cr); err != nil {
+		return nil, fmt.Errorf("decoding AppManifest CR: %w", err)
+	}
+
+	manifest, err := cr.Spec.ToManifestData()
+	if err != nil {
+		return nil, fmt.Errorf("converting AppManifestSpec to ManifestData: %w", err)
+	}
+	return &manifest, nil
 }
