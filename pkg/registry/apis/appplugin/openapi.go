@@ -2,8 +2,10 @@ package appplugin
 
 import (
 	"fmt"
+	"maps"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kube-openapi/pkg/common"
 	"k8s.io/kube-openapi/pkg/spec3"
 	"k8s.io/kube-openapi/pkg/validation/spec"
@@ -15,7 +17,36 @@ import (
 )
 
 func (b *AppPluginAPIBuilder) GetOpenAPIDefinitions() common.GetOpenAPIDefinitions {
-	return apppluginV0.GetOpenAPIDefinitions
+	return func(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
+		base := apppluginV0.GetOpenAPIDefinitions(ref)
+		if b.manifest != nil {
+			// TODO: this should likely be moved to a utility in the SDK that would collect
+			// all definitions across the manifest
+			for _, version := range b.manifest.Versions {
+				if version.Name != b.groupVersion.Version {
+					continue
+				}
+				if !version.Served {
+					continue
+				}
+
+				for _, kind := range version.Kinds {
+					gvk := schema.GroupVersionKind{
+						Group:   b.manifest.Group,
+						Version: version.Name,
+						Kind:    kind.Kind,
+					}
+					k, err := kind.Schema.AsKubeOpenAPI(gvk, ref, b.groupVersion.Group)
+					if err != nil {
+						fmt.Printf("ERROR getting KubeOpenAPI! %v >>> %+v", gvk, err)
+						continue
+					}
+					maps.Copy(base, k)
+				}
+			}
+		}
+		return base
+	}
 }
 
 func (b *AppPluginAPIBuilder) PostProcessOpenAPI(oas *spec3.OpenAPI) (*spec3.OpenAPI, error) {

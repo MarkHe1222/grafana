@@ -11,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 
 	"github.com/grafana/grafana-app-sdk/app"
 	"github.com/grafana/grafana-app-sdk/logging"
@@ -176,22 +177,21 @@ func RegisterAPIService(
 			return nil, err
 		}
 
-		if plugin.Manifest != nil {
-			// TODO? do we register each version?
-			for _, v := range plugin.Manifest.Versions {
-				fmt.Printf("TODO, register: %s/%s\n", plugin.Manifest.Group, v.Name)
-			}
-
-			// TODO -- update the constructor with the manifest
-			// That will support MT, but that requires parallel enterprise PR
-			b.manifest = plugin.Manifest
-		}
-
-		// Hardcoded just to check if things run
-		if true {
+		// Hardcoded just to simplify initial smoke testing
+		if plugin.JSONData.ID == "grafana-pyroscope-app" {
 			copy := exampleManifestData
 			copy.Group = b.groupVersion.Group
 			b.manifest = &copy
+		}
+
+		// TODO -- update the constructor with the manifest
+		// That will support MT, but that requires parallel enterprise PR
+		if plugin.Manifest != nil {
+			// TODO? do we register each version?
+			for _, v := range plugin.Manifest.Versions {
+				fmt.Printf("TODO??? register: %s/%s\n", plugin.Manifest.Group, v.Name)
+			}
+			b.manifest = plugin.Manifest
 		}
 
 		apiRegistrar.RegisterAPI(b)
@@ -291,6 +291,18 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 					Scheme:               opts.Scheme,
 				})
 
+				key := fmt.Sprintf("%s.%s", gr.Group, gvk.Kind)
+				def, err := kind.Schema.AsKubeOpenAPI(gvk, func(path string) spec.Ref {
+					return spec.Ref{} // ????
+				}, b.groupVersion.Group)
+				if err != nil {
+					return err
+				}
+				obj, found := def[key]
+				if !found {
+					return fmt.Errorf("missing expected schema key")
+				}
+
 				ri := utils.NewResourceInfo(
 					b.groupVersion.Group, version, gr.Resource,
 					kind.Kind, // singular name
@@ -308,13 +320,17 @@ func (b *AppPluginAPIBuilder) UpdateAPIGroupInfo(apiGroupInfo *genericapiserver.
 					utils.TableColumns{}, // from manifest
 				)
 
+				// TODO! the storage should be wrapped with plugin callbacks and using obj.Schema to validate
 				unified, err = grafanaregistry.NewRegistryStore(opts.Scheme, ri, opts.OptsGetter)
 				if err != nil {
 					return err
 				}
 				storage[ri.StoragePath()] = unified
 
-				// TODO, if status exists enable that also
+				// Register status endpoint
+				if _, found = obj.Schema.Properties["status"]; found {
+					fmt.Printf("TODO... register the status endpoint: %v\n", gvk)
+				}
 			}
 		}
 	}
